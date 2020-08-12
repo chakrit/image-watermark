@@ -15,6 +15,7 @@ mod watermark;
 
 pub use crate::colors::Color;
 pub use crate::lines::Line;
+pub use crate::result::Error;
 pub use crate::result::Result;
 pub use crate::watermark::Watermark;
 
