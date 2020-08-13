@@ -150,6 +150,8 @@ mod tests {
             .with_lines(lines);
 
         let out_buf = apply(TEST_INPUT_IMAGE.to_vec(), watermark).unwrap();
+        // let out_path = std::path::Path::new("./output.png");
+        // std::fs::write(&out_path, &out_buf).unwrap();
         assert_eq!(out_buf.len(), TEST_OUTPUT_IMAGE.len());
     }
 }
