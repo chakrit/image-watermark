@@ -3,7 +3,7 @@ use crate::{
     result::{Error, Result},
 };
 use rusttype::{point, Font, Scale};
-use std::{cmp::max, sync::Arc};
+use std::{cmp::Ordering, sync::Arc};
 use unicode_normalization::UnicodeNormalization;
 
 #[derive(Debug)]
@@ -13,8 +13,8 @@ pub struct Line<'t> {
     color: Color,
     text: &'t str,
 
-    layout_w: u32,
-    layout_h: u32,
+    layout_w: f32,
+    layout_h: f32,
 }
 
 impl<'t> Line<'t> {
@@ -59,33 +59,46 @@ impl<'t> Line<'t> {
     pub fn text(&self) -> &str {
         self.text
     }
-    pub fn width(&self) -> u32 {
+    pub fn width(&self) -> f32 {
         self.layout_w
     }
-    pub fn height(&self) -> u32 {
+    pub fn height(&self) -> f32 {
         self.layout_h
     }
 
-    pub fn ascent(&self) -> u32 {
-        self.font.v_metrics(self.scale).ascent.round() as u32
+    pub fn ascent(&self) -> f32 {
+        self.font.v_metrics(self.scale).ascent
     }
-    pub fn descent(&self) -> u32 {
-        self.font.v_metrics(self.scale).descent.round() as u32
+    pub fn descent(&self) -> f32 {
+        self.font.v_metrics(self.scale).descent
     }
 
-    fn layout<'c>(font: &Font, scale: Scale, text: &'c str) -> (u32, u32) {
+    fn layout<'c>(font: &Font, scale: Scale, text: &'c str) -> (f32, f32) {
         let text = text.nfc().collect::<String>();
-        let (mut w, mut h): (u32, u32) = (0, 0);
+        let (mut w, mut h): (f32, f32) = (0.0, 0.0);
 
         let v_metrics = font.v_metrics(scale);
         let layout = font.layout(&text, scale, point(0.0, v_metrics.ascent));
         for g in layout {
-            if let Some(bb) = g.pixel_bounding_box() {
-                w = max(w, bb.max.x as u32);
-                h = max(h, bb.max.y as u32);
+            let bb = g.pixel_bounding_box();
+            if bb.is_none() {
+                continue;
             }
+
+            let bb = bb.unwrap();
+            let (max_x, max_y) = (bb.max.x as f32, bb.max.y as f32);
+            w = if Some(Ordering::Greater) == w.partial_cmp(&max_x) {
+                w
+            } else {
+                max_x
+            };
+            h = if Some(Ordering::Greater) == h.partial_cmp(&max_y) {
+                h
+            } else {
+                max_y
+            };
         }
 
-        (w, h + (v_metrics.descent.round() as u32))
+        (w, h + v_metrics.descent)
     }
 }

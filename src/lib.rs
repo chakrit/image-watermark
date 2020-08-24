@@ -2,6 +2,12 @@ extern crate image;
 extern crate imageproc;
 extern crate rusttype;
 
+mod colors;
+mod futils;
+mod lines;
+mod result;
+mod watermark;
+
 use image::imageops::{overlay, resize, FilterType};
 use image::{GenericImageView, ImageFormat, RgbaImage};
 use imageproc::drawing::draw_text_mut;
@@ -9,9 +15,7 @@ use imageproc::geometric_transformations::{rotate_about_center, Interpolation};
 use std::cmp::{max, min};
 use std::iter::Iterator;
 
-mod colors;
-mod lines;
-mod watermark;
+use crate::futils::*;
 
 pub use crate::colors::Color;
 pub use crate::lines::Line;
@@ -19,9 +23,7 @@ pub use crate::result::Error;
 pub use crate::result::Result;
 pub use crate::watermark::Watermark;
 
-pub mod result;
-
-const PAD_FOR_ROTATE: u32 = 10;
+const PAD_FOR_ROTATE: f32 = 10.0;
 
 pub fn apply(base_img_buf: Vec<u8>, watermark: Watermark) -> Result<Vec<u8>> {
     let lines = watermark.lines;
@@ -30,25 +32,25 @@ pub fn apply(base_img_buf: Vec<u8>, watermark: Watermark) -> Result<Vec<u8>> {
     // clipped by the border.
     let top_ascent_h = lines.first().map(Line::ascent).unwrap_or_default();
     let bottom_descent_h = lines.last().map(Line::descent).unwrap_or_default();
-    let padding = max(top_ascent_h, bottom_descent_h) + PAD_FOR_ROTATE;
+    let padding = max_f32(top_ascent_h, bottom_descent_h) + PAD_FOR_ROTATE;
 
     let (mark_bb_w, mark_bb_h) = (
-        lines.iter().map(Line::width).max().unwrap_or_default() + 2 * padding,
-        lines.iter().map(Line::height).sum::<u32>() + 2 * padding,
+        lines.iter().map(Line::width).max_f32().unwrap_or_default() + 2.0 * padding,
+        lines.iter().map(Line::height).sum_f32() + 2.0 * padding,
     );
-    let mark_rect_size = max(mark_bb_w, mark_bb_h);
+    let mark_rect_size = max_f32(mark_bb_w, mark_bb_h);
 
     // draw the transparent watermark image in a buffer first (so we can rotate and scale without
     // impacting the target image)
-    let mut mark_img = RgbaImage::new(mark_rect_size, mark_rect_size);
-    let mut origin = rusttype::point(padding, (mark_rect_size - mark_bb_h) >> 1);
+    let mut mark_img = RgbaImage::new(mark_rect_size as u32, mark_rect_size as u32);
+    let mut origin = rusttype::point(padding, (mark_rect_size - mark_bb_h) * 0.5);
     for line in lines.iter() {
-        origin.x = padding + ((mark_bb_w - line.width()) >> 1); // center text horizontally
+        origin.x = padding + ((mark_bb_w - line.width()) * 0.5); // center text horizontally
         draw_text_mut(
             &mut mark_img,
             line.color(),
-            origin.x,
-            origin.y,
+            origin.x.round() as u32,
+            origin.y.round() as u32,
             line.scale(),
             line.font().as_ref(),
             line.text(),
