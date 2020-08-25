@@ -2,105 +2,28 @@ extern crate image;
 extern crate imageproc;
 extern crate rusttype;
 
-mod colors;
 mod futils;
 mod lines;
+mod op;
 mod result;
-mod watermark;
 
-use image::imageops::{overlay, resize, FilterType};
-use image::{GenericImageView, ImageFormat, RgbaImage};
-use imageproc::drawing::draw_text_mut;
-use imageproc::geometric_transformations::{rotate_about_center, Interpolation};
-use std::cmp::{max, min};
-use std::iter::Iterator;
+use std::iter::IntoIterator;
 
-use crate::futils::*;
+pub mod colors;
 
-pub use crate::colors::Color;
-pub use crate::lines::Line;
-pub use crate::result::Error;
-pub use crate::result::Result;
-pub use crate::watermark::Watermark;
+pub use crate::{colors::Color, lines::Line, op::Op, result::Error, result::Result};
 
-const PAD_FOR_ROTATE: f32 = 10.0;
-
-pub fn apply(base_img_buf: Vec<u8>, watermark: Watermark) -> Result<Vec<u8>> {
-    let lines = watermark.lines;
-
-    // adds enough padding so that rotating the image wouldn't result in corners of the text being
-    // clipped by the border.
-    let top_ascent_h = lines.first().map(Line::ascent).unwrap_or_default();
-    let bottom_descent_h = lines.last().map(Line::descent).unwrap_or_default();
-    let padding = max_f32(top_ascent_h, bottom_descent_h) + PAD_FOR_ROTATE;
-
-    let (mark_bb_w, mark_bb_h) = (
-        lines.iter().map(Line::width).max_f32().unwrap_or_default() + 2.0 * padding,
-        lines.iter().map(Line::height).sum_f32() + 2.0 * padding,
-    );
-    let mark_rect_size = max_f32(mark_bb_w, mark_bb_h);
-
-    // draw the transparent watermark image in a buffer first (so we can rotate and scale without
-    // impacting the target image)
-    let mut mark_img = RgbaImage::new(mark_rect_size as u32, mark_rect_size as u32);
-    let mut origin = rusttype::point(padding, (mark_rect_size - mark_bb_h) * 0.5);
-    for line in lines.iter() {
-        origin.x = padding + ((mark_bb_w - line.width()) * 0.5); // center text horizontally
-        draw_text_mut(
-            &mut mark_img,
-            line.color(),
-            origin.x.round() as u32,
-            origin.y.round() as u32,
-            line.scale(),
-            line.font().as_ref(),
-            line.text(),
-        );
-        origin.y += line.height(); // move down 1 line
+pub fn apply<'a>(
+    img_data: Vec<u8>,
+    pipelines: impl IntoIterator<Item = Op<'a>>,
+) -> Result<Vec<u8>> {
+    let mut img: image::DynamicImage = image::load_from_memory(&img_data)?;
+    for op in pipelines {
+        img = op.apply(img);
     }
-
-    // rotate the mark
-    if watermark.mark_scale != Default::default() {
-        mark_img = rotate_about_center(
-            &mark_img,
-            watermark.mark_theta,
-            Interpolation::Bicubic,
-            colors::clear(),
-        );
-    }
-
-    // load the base image
-    let mut base_img = image::load_from_memory(&base_img_buf)?;
-    let (mut base_w, mut base_h) = base_img.dimensions();
-
-    // crops
-    if watermark.crop_scale != Default::default() {
-        let (crop_w, crop_h) = (
-            (base_w as f32 * watermark.crop_scale.0).round() as u32,
-            (base_h as f32 * watermark.crop_scale.1).round() as u32,
-        );
-        let (crop_x, crop_y) = ((base_w - crop_w) >> 1, (base_h - crop_h) >> 1);
-        base_img = base_img.crop(crop_x, crop_y, crop_w, crop_h);
-        base_w = crop_w;
-        base_h = crop_h;
-    }
-
-    // resize mask to fit the (cropped-)image based on mark_scale
-    let scaled_mark_size = (min(base_w, base_h) as f32 * watermark.mark_scale).round() as u32;
-    let mut scaled_mark_img = resize(
-        &mut mark_img,
-        scaled_mark_size,
-        scaled_mark_size,
-        FilterType::Gaussian,
-    );
-
-    let (mark_x, mark_y) = (
-        (base_w - scaled_mark_size) >> 1,
-        (base_h - scaled_mark_size) >> 1,
-    );
-    overlay(&mut base_img, &mut scaled_mark_img, mark_x, mark_y);
 
     let mut out_buf: Vec<u8> = Vec::new();
-    base_img.write_to(&mut out_buf, ImageFormat::Png)?;
+    img.write_to(&mut out_buf, image::ImageFormat::Png)?;
     Ok(out_buf)
 }
 
@@ -146,12 +69,13 @@ mod tests {
             .unwrap(),
         ];
 
-        let watermark = Watermark::scaled(0.8)
-            .and_cropped(0.5, 0.8)
-            .and_rotated(-0.16) // 30 degrees counter-clockwise
-            .with_lines(lines);
+        let ops = vec![
+            Op::Scale(0.8),
+            Op::Crop(0.5, 0.8),
+            Op::Watermark(0.8, lines),
+        ];
 
-        let out_buf = apply(TEST_INPUT_IMAGE.to_vec(), watermark).unwrap();
+        let out_buf = apply(TEST_INPUT_IMAGE.to_vec(), ops).unwrap();
         // let out_path = std::path::Path::new("./output.png");
         // std::fs::write(&out_path, &out_buf).unwrap();
         assert_eq!(out_buf.len(), TEST_OUTPUT_IMAGE.len());
