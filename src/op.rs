@@ -19,6 +19,7 @@ pub enum Op<'a> {
     CropExact(u32, u32),
     PaperPaste(u32, u32, u32, u32),
     Watermark(f32, Lines<'a>),
+    Stamp(DynamicImage, u32, u32),
 }
 
 impl<'a> Op<'a> {
@@ -31,6 +32,7 @@ impl<'a> Op<'a> {
             Self::CropExact(nw, nh) => crop_exact(buf, nw, nh),
             Self::PaperPaste(pw, ph, x, y) => paper_paste(buf, pw, ph, x, y),
             Self::Watermark(scale, lines) => watermark(buf, scale, lines),
+            Self::Stamp(stamp_img, x, y) => stamp(buf, stamp_img, x, y),
         }
     }
 }
@@ -129,4 +131,9 @@ fn watermark<'a>(buf: DynamicImage, mark_scale: f32, lines: Lines<'a>) -> Dynami
     let mut base_img = buf.to_rgba();
     overlay(&mut base_img, &mut scaled_mark_img, mark_x, mark_y);
     DynamicImage::ImageRgba8(base_img)
+}
+
+fn stamp(mut buf: DynamicImage, mut img: DynamicImage, x: u32, y: u32) -> DynamicImage {
+    overlay(&mut buf, &mut img, x, y);
+    buf
 }
