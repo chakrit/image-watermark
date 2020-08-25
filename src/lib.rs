@@ -34,11 +34,10 @@ mod tests {
     use super::*;
 
     static TEST_FONT: &[u8] = include_bytes!("../testdata/fonts/Athiti-Bold.ttf");
-    static TEST_INPUT_IMAGE: &[u8] =
-        include_bytes!("../testdata/images/lenin-estrada-OI1ToozsKBw-unsplash.jpg");
-    static TEST_WATERMARK_COLOR: [u8; 4] = [255, 255, 255, 255];
-    static TEST_OUTPUT_IMAGE: &[u8] =
-        include_bytes!("../testdata/images/lenin-estrada-OI1ToozsKBw-unsplash.watermarked.png");
+    static TEST_ID_IMAGE: &[u8] = include_bytes!("../testdata/images/id_card.jpg");
+    static TEST_SIG_IMAGE: &[u8] = include_bytes!("../testdata/images/signature.png");
+    static TEST_WATERMARK_COLOR: [u8; 4] = [255, 0, 0, 255];
+    static TEST_OUTPUT_IMAGE: &[u8] = include_bytes!("../testdata/images/output.png");
 
     #[test]
     fn it_works() {
@@ -47,7 +46,8 @@ mod tests {
 
     #[test]
     fn it_applies_correctly() {
-        let lines = vec![
+        let sig_img = image::load_from_memory(TEST_SIG_IMAGE).unwrap();
+        let mark_lines = vec![
             Line::new(
                 TEST_FONT,
                 128.0,
@@ -71,15 +71,27 @@ mod tests {
             .unwrap(),
         ];
 
+        let (id_w, id_h) = (800, 600);
+        let (paper_w, paper_h) = (2100, 2970);
+        let (paper_x, paper_y) = ((paper_w - id_w) >> 1, (paper_h - id_h) >> 2);
+        let (sig_w, sig_h) = sig_img.dimensions();
+        let (sig_x, sig_y) = ((paper_w - sig_w) >> 1, (paper_h - sig_h) >> 1);
+
         let ops = vec![
-            Op::Scale(0.8),
-            Op::Crop(0.5, 0.8),
-            Op::Watermark(0.8, lines),
+            Op::Crop(0.9, 0.9),
+            Op::ScaleExact(id_w, id_h),
+            Op::Watermark(0.9, mark_lines),
+            Op::PaperPaste(paper_w, paper_h, paper_x, paper_y),
+            Op::Stamp(sig_img, sig_x, sig_y),
         ];
 
-        let out_buf = apply(TEST_INPUT_IMAGE.to_vec(), ops).unwrap();
-        // let out_path = std::path::Path::new("./output.png");
-        // std::fs::write(&out_path, &out_buf).unwrap();
+        let out_buf = apply(TEST_ID_IMAGE.to_vec(), ops).unwrap();
+        if std::env::var("WATERMARK_OUTPUT").unwrap_or_default() != "" {
+            let out_path = std::path::Path::new("./output.png");
+            std::fs::write(&out_path, &out_buf).unwrap();
+        }
+
+        // TODO: Do a more precise pixel comparison
         assert_eq!(out_buf.len(), TEST_OUTPUT_IMAGE.len());
     }
 }
