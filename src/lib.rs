@@ -7,6 +7,8 @@ mod lines;
 mod op;
 mod result;
 
+#[allow(unused_imports)/* required for .dimensions() on DynamicImage */]
+use image::GenericImageView;
 use std::iter::IntoIterator;
 
 pub mod colors;
