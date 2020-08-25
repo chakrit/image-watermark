@@ -1,23 +1,25 @@
 # IMAGE-WATERMARK
 
 ```rs
-use image_watermark as watermark;
+use image_watermark::*;
 
 let lines = vec![
-    watermark::Line::new(
+    Line::new(
         TEST_FONT,
         128.0,
-        watermark::colors::from([255, 255, 255, 255]),
-        "watermark text",
+        colors::from(TEST_WATERMARK_COLOR),
+        "the quick brown fox jumps over the lazy dog",
     )
     .unwrap(),
 ];
 
-let watermark = watermark::Watermark::scaled(0.8)
-    .and_cropped(0.5, 0.8)
-    .and_rotated(-0.16) // 30 degrees counter-clockwise
-    .with_lines(lines);
+let ops = vec![
+    Op::Scale(0.8),
+    Op::Crop(0.5, 0.8),
+    Op::Watermark(0.8, lines),
+];
 
-let out_buf = watermark::apply(TEST_INPUT_IMAGE.to_vec(), watermark).unwrap();
-assert_eq!(out_buf.len(), TEST_OUTPUT_IMAGE.len());
+let out_buf = apply(TEST_INPUT_IMAGE.to_vec(), ops).unwrap();
+let out_path = std::path::Path::new("./output.png");
+std::fs::write(&out_path, &out_buf).unwrap();
 ```
