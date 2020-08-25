@@ -66,9 +66,31 @@ fn crop_exact(buf: DynamicImage, nw: u32, nh: u32) -> DynamicImage {
     buf.crop_imm(x, y, nw, nh)
 }
 
-fn paper_paste(buf: DynamicImage, pw: u32, ph: u32, x: u32, y: u32) -> DynamicImage {
+fn paper_paste(buf: DynamicImage, pw: u32, ph: u32, px: u32, py: u32) -> DynamicImage {
+    let (img_w, img_h) = buf.dimensions();
+
+    // draw a plain white paper, skipping the parts where the image would be
     let mut paper = RgbaImage::new(pw, ph);
-    overlay(&mut paper, &buf, x, y);
+    for y in 0..py {
+        for x in 0..pw {
+            paper.put_pixel(x, y, colors::white());
+        }
+    }
+    for y in py..=(py + img_h) {
+        for x in 0..px {
+            paper.put_pixel(x, y, colors::white());
+        }
+        for x in (px + img_w + 1)..pw {
+            paper.put_pixel(x, y, colors::white());
+        }
+    }
+    for y in (py + img_h + 1)..ph {
+        for x in 0..pw {
+            paper.put_pixel(x, y, colors::white());
+        }
+    }
+
+    overlay(&mut paper, &buf, px, py);
     DynamicImage::ImageRgba8(paper)
 }
 
