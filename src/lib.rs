@@ -37,6 +37,7 @@ mod tests {
     static TEST_ID_IMAGE: &[u8] = include_bytes!("../testdata/images/id_card.jpg");
     static TEST_SIG_IMAGE: &[u8] = include_bytes!("../testdata/images/signature.png");
     static TEST_WATERMARK_COLOR: [u8; 4] = [255, 0, 0, 255];
+    static TEST_WATERMARK_LINE_SPACING: f32 = 0.2;
     static TEST_OUTPUT_IMAGE: &[u8] = include_bytes!("../testdata/images/output.png");
 
     #[test]
@@ -46,6 +47,8 @@ mod tests {
 
     #[test]
     fn it_applies_correctly() {
+        use std::io::Write;
+
         let sig_img = image::load_from_memory(TEST_SIG_IMAGE).unwrap();
         let mark_lines = vec![
             Line::new(
@@ -54,21 +57,24 @@ mod tests {
                 colors::from(TEST_WATERMARK_COLOR),
                 "ทดสอบภาษาไทย English",
             )
-            .unwrap(),
+            .unwrap()
+            .with_spacing(TEST_WATERMARK_LINE_SPACING),
             Line::new(
                 TEST_FONT,
                 128.0,
                 colors::from(TEST_WATERMARK_COLOR),
                 "jumps over the lazy dog, เดอะควิกบราวน์ฟอกซ์",
             )
-            .unwrap(),
+            .unwrap()
+            .with_spacing(TEST_WATERMARK_LINE_SPACING),
             Line::new(
                 TEST_FONT,
                 128.0,
                 colors::from(TEST_WATERMARK_COLOR),
                 "01 January 2020",
             )
-            .unwrap(),
+            .unwrap()
+            .with_spacing(TEST_WATERMARK_LINE_SPACING),
         ];
 
         let (id_w, id_h) = (800, 600);
@@ -86,9 +92,9 @@ mod tests {
         ];
 
         let out_buf = apply(TEST_ID_IMAGE.to_vec(), ops).unwrap();
-        if std::env::var("WATERMARK_OUTPUT").unwrap_or_default() != "" {
-            let out_path = std::path::Path::new("./output.png");
-            std::fs::write(&out_path, &out_buf).unwrap();
+        if let Some(out_path) = std::env::var("WATERMARK_OUTPUT").ok() {
+            let mut out_file = std::fs::File::create(out_path).unwrap();
+            out_file.write_all(&out_buf).unwrap();
         }
 
         // TODO: Do a more precise pixel comparison
