@@ -48,7 +48,7 @@ fn scale_exact(buf: DynamicImage, w: u32, h: u32) -> DynamicImage {
 }
 
 fn rotate(buf: DynamicImage, theta: f32) -> DynamicImage {
-    let rgba = buf.to_rgba();
+    let rgba = buf.to_rgba8();
     let result = rotate_about_center(&rgba, theta, Interpolation::Bicubic, Rgba([0, 0, 0, 255]));
     DynamicImage::ImageRgba8(result)
 }
@@ -98,7 +98,7 @@ fn watermark<'a>(buf: DynamicImage, mark_scale: f32, lines: Lines<'a>) -> Dynami
     const PAD_FOR_ROTATE: f32 = 10.0;
     const WATERMARK_THETA: f32 = -0.16;
 
-    // TODO: This assumes that width of the rendered text are not longer than its height.
+    // TODO: This assumes that width of the rendered text are always longer than its height.
     let top_ascent_h = lines.first().map(Line::ascent).unwrap_or_default();
     let bottom_descent_h = lines.last().map(Line::descent).unwrap_or_default();
     let padding = max_f32(top_ascent_h, bottom_descent_h) + PAD_FOR_ROTATE;
@@ -150,7 +150,7 @@ fn watermark<'a>(buf: DynamicImage, mark_scale: f32, lines: Lines<'a>) -> Dynami
     );
 
     // actually draw the watermark
-    let mut base_img = buf.to_rgba();
+    let mut base_img = buf.to_rgba8();
     overlay(&mut base_img, &mut scaled_mark_img, mark_x, mark_y);
     DynamicImage::ImageRgba8(base_img)
 }
