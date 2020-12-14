@@ -142,7 +142,7 @@ fn watermark<'a>(buf: DynamicImage, mark_scale: f32, lines: Lines<'a>) -> Dynami
         &mut mark_img,
         scaled_mark_size,
         scaled_mark_size,
-        FilterType::Gaussian,
+        FilterType::Nearest,
     );
     let (mark_x, mark_y) = (
         (base_w - scaled_mark_size) >> 1,
